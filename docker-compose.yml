@@ -1,0 +1,153 @@
+services:
+  # Conteneur ACME pour gérer les certificats
+  acme-haproxy:
+    image: neilpang/acme.sh:latest
+    container_name: acme-front
+    restart: always
+    volumes:
+      - acme-data:/acme.sh
+      - ./data/certs:/acme-certs
+      - ./data/scripts:/scripts:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - haproxy-front
+      #- mailcow-network
+    environment:
+      - TZ=${TZ:-Europe/Paris}
+      - CF_Token=${CF_TOKEN:-}
+      - ACME_EMAIL=${ACME_EMAIL:-acme@example.com}
+      # Configuration des certificats à générer
+      # Format : "nom_cert:domaine1,domaine2,domaine3 autre_cert:domaine4,domaine5"
+      - CERT_DOMAINS=${CERT_DOMAINS:-example.com:www.example.com,example.com,webmail.example.com,mail.example.com}
+    # Healthcheck : vérifie que l'initialisation est terminée
+    healthcheck:
+      test: ["CMD", "test", "-f", "/acme-certs/.init-done"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+    labels:
+      # Job Ofelia pour renouveler les certificats (automatique via parsing CERT_DOMAINS)
+      ofelia.enabled: "true"
+      ofelia.job-exec.acme_renew_all.schedule: "@daily"
+      ofelia.job-exec.acme_renew_all.no-overlap: "true"
+      ofelia.job-exec.acme_renew_all.command: "/bin/sh /scripts/renew-certs.sh"
+    # Lancer le script d'initialisation puis le daemon
+    entrypoint: ["/bin/sh", "-c"]
+    command: 
+      - |
+        echo "=== Démarrage ACME avec initialisation ==="
+        # Exécuter le script d'init si les certificats n'existent pas
+        if [ ! -f /acme-certs/.init-done ]; then
+          echo "Lancement de l'initialisation des certificats..."
+          sh /scripts/init-certs.sh || echo "Erreur lors de l'initialisation (peut-être certificats déjà présents)"
+        else
+          echo "Certificats déjà initialisés, skip"
+        fi
+        # Lancer le daemon ACME
+        echo "Lancement du daemon ACME..."
+        exec /entry.sh daemon
+
+  front-haproxy:
+    image: haproxy:latest
+    # debug tools in haproxy image 
+    #build:
+    #  context: .
+    #  dockerfile: haproxy.dockerfile
+    container_name: haproxy-front
+    restart: always
+    depends_on:
+      acme-haproxy:
+        condition: service_healthy
+    ports:
+      # HTTP/HTTPS
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Configuration HAProxy
+      - ./data/conf:/usr/local/etc/haproxy:ro
+      # Certificats SSL générés par ACME
+      - ./data/certs:/etc/ssl/certs/haproxy:ro
+    networks:
+      # Connexion au réseau hôte pour écouter sur 443
+      haproxy-front:
+        ipv4_address: ${HAPROXY_FRONT_IPV4:-172.21.1.100}
+        ipv6_address: ${HAPROXY_FRONT_IPV6:-fd4d:6169:6c63:00f1::0100}
+      # Connexion au réseau mailcow pour accéder aux services
+      mailcow-network:
+        ipv4_address: ${HAPROXY_MAILCOW_IPV4:-172.22.1.100}
+        ipv6_address: ${HAPROXY_MAILCOW_IPV6:-fd4d:6169:6c63:6f77::0100}
+    environment:
+      - TZ=${TZ:-Europe/Paris}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Service auxiliaire pour recharger les services après renouvellement de certificats
+  # Utilisé par Ofelia via job-exec
+  cert-reloader:
+    image: docker:cli
+    container_name: cert-reloader-front
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data/scripts:/scripts:ro
+    networks:
+     - haproxy-front
+    labels:
+      ofelia.enabled: "true"
+      # Job Ofelia pour recharger les services après renouvellement de certificats
+      ofelia.job-exec.reload_services.schedule: "@daily"
+      ofelia.job-exec.reload_services.command: "sh /scripts/reload-services.sh"
+      ofelia.job-exec.reload_services.no-overlap: "true"
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "echo 'Service auxiliaire pour Ofelia - En attente des jobs planifiés' && tail -f /dev/null"]
+
+
+  ofelia-haproxy:
+    image: mcuadros/ofelia:latest
+    container_name: ofelia-front
+    restart: always
+    command: daemon --docker -f label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}
+    environment:
+      - TZ=${TZ}
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}
+    depends_on:
+      - front-haproxy
+      - acme-haproxy
+      - cert-reloader
+    labels:
+      ofelia.enabled: "true"
+    security_opt:
+      - label=disable
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      haproxy-front:
+        aliases:
+          - ofelia
+networks:
+  # Réseau externe mailcow (doit exister)
+  mailcow-network:
+    external: true
+    name: ${MAILCOW_NETWORK_NAME:-mailcowdockerized_mailcow-network}
+  # Réseau par défaut (bridge) pour accès hôte
+  haproxy-front:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-haproxy
+    enable_ipv6: true
+    ipam:
+      driver: default
+      config:
+        - subnet: ${IPV4_NETWORK:-172.16.0}.0/24
+        - subnet: ${IPV6_NETWORK:-fd4d:6169:6c63:0000}::/64
+volumes:
+  acme-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${FRONT_VOLUME_PATH:-/mnt/haproxy-data}/acme

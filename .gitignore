@@ -1,0 +1,29 @@
+# Fichiers de configuration sensibles
+.env
+
+# Données et volumes
+volumes/
+data/
+
+# Logs
+*.log
+logs/
+
+# Docker
+.docker/
+
+# Fichiers temporaires
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Certificats et clés (sécurité)
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+
