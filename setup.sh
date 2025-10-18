@@ -2,6 +2,10 @@
 
 set -e
 
+# Ask for the domain name to use for replacement
+read -p "Enter the domain name to use (default: example.net): " DOMAIN_REPLACE
+DOMAIN_REPLACE=${DOMAIN_REPLACE:-example.net}
+
 # Function to prompt user for confirmation
 yes_or_no() {
     while true; do
@@ -33,7 +37,7 @@ done
 # Copy .env.template to .env if .env does not exist
 if [ ! -f ".env" ]; then
     if yes_or_no "Copy .env.template to .env?"; then
-        cp .env.template .env
+        cp env.template .env
         echo ".env created from template."
     else
         echo "Skipped .env creation."
@@ -42,22 +46,26 @@ else
     echo ".env already exists."
 fi
 
-# Copy scripts from bootstrap_scripts to data/scripts
-if yes_or_no "Do you want to copy scripts from bootstrap_scripts to data/scripts?"; then
-    cp -a bootstrap_scripts/. data/scripts/
-    echo "Scripts copied to data/scripts."
-    echo "These files were copied from ./bootstrap_scripts" > data/scripts/readme.txt
-else
-    echo "Skipped copying scripts."
-fi
-
 # Copy configuration files from bootstrap_conf to data/conf
 if yes_or_no "Do you want to copy configuration files from bootstrap_conf to data/conf?"; then
     cp -a bootstrap_conf/. data/conf/
     echo "Configuration files copied to data/conf."
     echo "These files were copied from ./bootstrap_conf" > data/conf/readme.txt
+    find data/conf -type f -exec sed -i "s/example.net/$DOMAIN_REPLACE/g" {} +
+    echo "All occurrences of 'example.net' have been replaced by '$DOMAIN_REPLACE' in data/conf."
 else
     echo "Skipped copying configuration files."
+fi
+
+# Copy scripts from bootstrap_scripts to data/scripts
+if yes_or_no "Do you want to copy scripts from bootstrap_scripts to data/scripts?"; then
+    cp -a bootstrap_scripts/. data/scripts/
+    echo "Scripts copied to data/scripts."
+    echo "These files were copied from ./bootstrap_scripts" > data/scripts/readme.txt
+    find data/scripts -type f -exec sed -i "s/example.net/$DOMAIN_REPLACE/g" {} +
+    echo "All occurrences of 'example.net' have been replaced by '$DOMAIN_REPLACE' in data/scripts."
+else
+    echo "Skipped copying scripts."
 fi
 
 echo "Setup completed."
