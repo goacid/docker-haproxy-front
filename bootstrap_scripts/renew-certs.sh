@@ -82,7 +82,7 @@ renew_cert() {
         --fullchain-file "${CERT_DIR}/${cert_name}/fullchain.pem"
     
     # Recréer le fichier combiné pour HAProxy
-    cat "${CERT_DIR}/${cert_name}/fullchain.pem" "${CERT_DIR}/${cert_name}/key.pem" > "${cert_file}"
+    cat "${CERT_DIR}/${cert_name}/fullchain.pem" "${CERT_DIR}/${cert_name}/cert.pem" "${CERT_DIR}/${cert_name}/key.pem" > "${cert_file}"
     chmod 644 "${cert_file}"
     
     echo "✓ Certificat réinstallé: ${cert_file}"
