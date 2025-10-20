@@ -20,6 +20,11 @@ if [ -z "${CERT_DOMAINS}" ]; then
     CERT_DOMAINS="example.net:www.example.net,example.net"
 fi
 
+if [ -z "${ACME_SERVER}" ]; then
+    # Serveur ACME par défaut
+    ACME_SERVER="zerossl"
+fi
+
 echo "=== Initialisation des certificats ACME ==="
 echo "Date: $(date)"
 echo "Configuration: ${CERT_DOMAINS}"
@@ -27,12 +32,12 @@ echo ""
 
 # Configurer le serveur Let's Encrypt et enregistrer le compte
 echo "--- Configuration ACME ---"
-acme.sh --set-default-ca --server letsencrypt
-echo "✓ Serveur par défaut: Let's Encrypt"
+acme.sh --set-default-ca --server ${ACME_SERVER}
+echo "✓ Serveur par défaut: ${ACME_SERVER}"
 
 if [ -n "${ACME_EMAIL}" ]; then
     echo "Enregistrement du compte avec email: ${ACME_EMAIL}"
-    acme.sh --register-account -m "${ACME_EMAIL}" --server letsencrypt || echo "Compte déjà enregistré"
+    acme.sh --register-account -m "${ACME_EMAIL}" --server ${ACME_SERVER} || echo "Compte déjà enregistré"
 else
     echo "⚠ Aucun email configuré (variable ACME_EMAIL)"
 fi
@@ -108,7 +113,7 @@ generate_cert() {
         --fullchain-file "${CERT_DIR}/${cert_name}/fullchain.pem"
     
     # Créer le fichier combiné pour HAProxy
-    cat "${CERT_DIR}/${cert_name}/fullchain.pem" "${CERT_DIR}/${cert_name}/key.pem" > "${cert_file}"
+    cat "${CERT_DIR}/${cert_name}/fullchain.pem" "${CERT_DIR}/${cert_name}/cert.pem" "${CERT_DIR}/${cert_name}/key.pem" > "${cert_file}"
     chmod 644 "${cert_file}"
     
     echo "✓ Certificat installé: ${cert_file}"
