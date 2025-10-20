@@ -142,8 +142,8 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: ${IPV4_NETWORK:-172.16.0}.0/24
-        - subnet: ${IPV6_NETWORK:-fd4d:6169:6c63:0000}::/64
+        - subnet: ${IPV4_FRONT_NETWORK:-172.16.0}.0/24
+        - subnet: ${IPV6_FRONT_NETWORK:-fd4d:6169:6c63:0000}::/64
 volumes:
   acme-data:
     driver: local
