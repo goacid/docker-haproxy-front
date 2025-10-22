@@ -1,51 +1,51 @@
 #!/bin/sh
 set -e
 
-# Script de rechargement des services après renouvellement de certificats
-# Ce script doit être exécuté par un container ayant accès à Docker
-# (typiquement lancé par Ofelia qui a le socket Docker monté)
+# Service reload script after certificate renewal
+# This script must be run by a container with access to Docker
+# (typically launched by Ofelia which has the Docker socket mounted)
 
-echo "=== Rechargement des services ==="
+echo "=== Services reload ==="
 echo "Date: $(date)"
 
-# Recharger HAProxy front
+# Reload HAProxy front
 echo ""
 echo "--- haproxy-front ---"
 if docker kill -s USR2 haproxy-front 2>/dev/null; then
-    echo "✓ haproxy-front rechargé (signal USR2 envoyé)"
+    echo "✓ haproxy-front reloaded (USR2 signal sent)"
 else
-    echo "⚠ Impossible de recharger haproxy-front (container non trouvé ou erreur)"
+    echo "⚠ Unable to reload haproxy-front (container not found or error)"
 fi
 
-# Recharger HAProxy mailcow
+# Reload HAProxy mailcow
 echo ""
 echo "--- haproxy-mailcow ---"
 if docker kill -s USR2 haproxy-mailcow 2>/dev/null; then
-    echo "✓ haproxy-mailcow rechargé (signal USR2 envoyé)"
+    echo "✓ haproxy-mailcow reloaded (USR2 signal sent)"
 else
-    echo "⚠ Impossible de recharger haproxy-mailcow (container non trouvé ou erreur)"
+    echo "⚠ Unable to reload haproxy-mailcow (container not found or error)"
 fi
 
-# Recharger Postfix
+# Reload Postfix
 echo ""
 echo "--- postfix-mailcow ---"
 if docker exec mailcowdockerized-postfix-mailcow-1 postfix reload 2>/dev/null; then
-    echo "✓ postfix-mailcow rechargé"
+    echo "✓ postfix-mailcow reloaded"
 else
-    echo "⚠ Impossible de recharger postfix-mailcow (container non trouvé ou erreur)"
+    echo "⚠ Unable to reload postfix-mailcow (container not found or error)"
 fi
 
-# Recharger Dovecot
+# Reload Dovecot
 echo ""
 echo "--- dovecot-mailcow ---"
 if docker exec mailcowdockerized-dovecot-mailcow-1 doveadm reload 2>/dev/null; then
-    echo "✓ dovecot-mailcow rechargé"
+    echo "✓ dovecot-mailcow reloaded"
 else
-    echo "⚠ Impossible de recharger dovecot-mailcow (container non trouvé ou erreur)"
+    echo "⚠ Unable to reload dovecot-mailcow (container not found or error)"
 fi
 
 echo ""
-echo "=== Rechargement terminé ==="
+echo "=== Reload completed ==="
 echo "Date: $(date)"
 echo ""
 
